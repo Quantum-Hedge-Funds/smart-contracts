@@ -8,7 +8,6 @@ async function getTokenPrices() {
     const apiResponse = await Functions.makeHttpRequest({
       url: `https://api.coingecko.com/api/v3/coins/${token.symbol}/market_chart?vs_currency=usd&days=60&interval=daily`,
     });
-    console.log(apiResponse.error);
     if (apiResponse.error) {
       continue;
     }
@@ -19,8 +18,6 @@ async function getTokenPrices() {
     }));
     prices.push({ ...token, prices: priceData });
   }
-
-  console.log(prices);
 
   return await uploadJSONToIPFS(prices);
 }
@@ -40,8 +37,6 @@ async function uploadJSONToIPFS(obj) {
       pinataMetadata: { name: "data.json" },
     },
   });
-
-  console.log(apiResponse);
 
   if (apiResponse.error) {
     throw "Error while saving the price data to ipfs";
