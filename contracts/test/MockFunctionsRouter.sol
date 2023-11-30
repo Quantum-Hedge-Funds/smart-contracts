@@ -8,6 +8,7 @@ contract MockFunctionsRouter {
     uint256 totalRequests;
 
     event RequestCreated(
+        bytes32 requestId,
         uint64 subscriptionId,
         bytes data,
         uint16 dataVersion,
@@ -23,19 +24,18 @@ contract MockFunctionsRouter {
         uint16 dataVersion,
         uint32 callbackGasLimit,
         bytes32 donId
-    ) external returns (bytes32) {
+    ) external returns (bytes32 requestId) {
+        requestId = keccak256(abi.encode(totalRequests++));
+        requesters[requestId] = msg.sender;
+
         emit RequestCreated(
+            requestId,
             subscriptionId,
             data,
             dataVersion,
             callbackGasLimit,
             donId
         );
-
-        bytes32 requestId = keccak256(abi.encode(totalRequests++));
-        requesters[requestId] = msg.sender;
-
-        return requestId;
     }
 
     function fulfill(
