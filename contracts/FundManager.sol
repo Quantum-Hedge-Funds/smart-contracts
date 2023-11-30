@@ -33,6 +33,8 @@ contract FundManager is Ownable, FunctionsClient {
     error InvalidStatusForThisCall();
     error InvalidRequestId();
 
+    bytes public result;
+
     constructor(
         address chainlinkFunctionsRouter
     ) FunctionsClient(chainlinkFunctionsRouter) Ownable(msg.sender) {}
@@ -118,6 +120,8 @@ contract FundManager is Ownable, FunctionsClient {
         //     string memory result = abi.decode(response, (string));
         //     updateResult(circuitHash, result);
         // }
+
+        result = response;
 
         emit ChainlinkResponse(requestId, response, err);
     }
