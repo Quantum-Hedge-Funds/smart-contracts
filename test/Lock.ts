@@ -3,10 +3,73 @@ import {
   loadFixture,
 } from "@nomicfoundation/hardhat-toolbox-viem/network-helpers";
 import { expect } from "chai";
-import hre from "hardhat";
+import hre, { viem } from "hardhat";
 import { getAddress, parseGwei } from "viem";
+import {
+  WalletClient,
+  PublicClient,
+  GetContractReturnType,
+  Account,
+  Address,
+  Transport,
+  Chain,
+  stringToHex,
+} from "viem";
+import { startSimulator } from "./chainlink-functions-simulators";
+import { FundManager$Type } from "../artifacts/contracts/FundManager.sol/FundManager";
+import fs from "fs";
 
-describe("Lock", function () {
+const donId = "fun-polygon-mumbai-1";
+const gasLimit = 300000;
+const subscriptionId = 469;
+
+describe("Fund Manager", function () {
+  let wallets: WalletClient[];
+  let publicClient: PublicClient;
+  let functionsRouterAddress: `0x${string}`;
+  let fundManager: GetContractReturnType<
+    FundManager$Type["abi"],
+    PublicClient<Transport, Chain>,
+    WalletClient<Transport, Chain, Account>
+  >;
+  const accounts: Account[] = [];
+
+  this.beforeAll(async () => {
+    wallets = await viem.getWalletClients();
+    publicClient = await hre.viem.getPublicClient();
+
+    for (const wallet of wallets) {
+      if (wallet.account) accounts.push(wallet.account);
+    }
+
+    functionsRouterAddress = await startSimulator();
+
+    fundManager = await viem.deployContract("FundManager", [
+      functionsRouterAddress,
+    ]);
+  });
+
+  it("Should update all the config variables", async () => {
+    await fundManager.write.setDONConfig([
+      0,
+      0n,
+      stringToHex(donId, { size: 32 }),
+    ]);
+
+    await fundManager.write.setGasLimit([gasLimit]);
+
+    await fundManager.write.setSubscriptionId([BigInt(subscriptionId)]);
+
+    // await fundManager.write.setEncryptedSecretUrls([stringToHex("")]);
+  });
+
+  it("Should make a request", async () => {
+    const functionSourceCode = fs.readFileSync(
+      "./chainlinkFunctions/fetchPastPrices.js"
+    );
+    await fundManager.write.makeRequest([functionSourceCode.toString()]);
+  });
+
   // We define a fixture to reuse the same setup in every test.
   // We use loadFixture to run this setup once, snapshot that state,
   // and reset Hardhat Network to that snapshot in every test.
@@ -45,7 +108,9 @@ describe("Lock", function () {
     it("Should set the right owner", async function () {
       const { lock, owner } = await loadFixture(deployOneYearLockFixture);
 
-      expect(await lock.read.owner()).to.equal(getAddress(owner.account.address));
+      expect(await lock.read.owner()).to.equal(
+        getAddress(owner.account.address)
+      );
     });
 
     it("Should receive and store the funds to lock", async function () {
@@ -123,7 +188,7 @@ describe("Lock", function () {
         await publicClient.waitForTransactionReceipt({ hash });
 
         // get the withdrawal events in the latest block
-        const withdrawalEvents = await lock.getEvents.Withdrawal()
+        const withdrawalEvents = await lock.getEvents.Withdrawal();
         expect(withdrawalEvents).to.have.lengthOf(1);
         expect(withdrawalEvents[0].args.amount).to.equal(lockedAmount);
       });
