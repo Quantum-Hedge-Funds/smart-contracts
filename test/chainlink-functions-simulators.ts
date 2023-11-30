@@ -18,7 +18,6 @@ const requestsHandled: Record<string, boolean> = {};
 export async function startSimulator() {
   const functionsRouter = await viem.deployContract("MockFunctionsRouter");
 
-  // const eventFilter = functionsRouter.createEventFilter.RequestCreated();
   functionsRouter.watchEvent.RequestCreated({
     onLogs: async (logs) => {
       for (const log of logs) {
