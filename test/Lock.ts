@@ -14,8 +14,13 @@ import {
   Transport,
   Chain,
   stringToHex,
+  keccak256,
+  stringToBytes,
 } from "viem";
-import { startSimulator } from "./chainlink-functions-simulators";
+import {
+  startSimulator,
+  waitForRequestHandling,
+} from "./chainlink-functions-simulators";
 import { FundManager$Type } from "../artifacts/contracts/FundManager.sol/FundManager";
 import fs from "fs";
 
@@ -67,7 +72,17 @@ describe("Fund Manager", function () {
     const functionSourceCode = fs.readFileSync(
       "./chainlinkFunctions/fetchPastPrices.js"
     );
-    await fundManager.write.makeRequest([functionSourceCode.toString()]);
+    const hash = await fundManager.write.makeRequest([
+      functionSourceCode.toString(),
+    ]);
+
+    await waitForRequestHandling(publicClient, fundManager.address, hash);
+    // const receipt = await publicClient.getTransactionReceipt({ hash });
+    // console.log(fundManager.address);
+
+    // console.log(keccak256(stringToBytes("RequestSent(bytes32)")));
+
+    // console.log(receipt.logs);
   });
 
   // We define a fixture to reuse the same setup in every test.

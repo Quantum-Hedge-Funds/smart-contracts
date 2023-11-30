@@ -1,6 +1,12 @@
 import { viem } from "hardhat";
-import { hexToBytes } from "viem";
+import { hexToBytes, encodePacked } from "viem";
 import cbor from "cbor";
+import {
+  PublicClient,
+  keccak256,
+  stringToBytes,
+  decodeAbiParameters,
+} from "viem";
 
 type DecodedData = Record<string, any>;
 
@@ -11,6 +17,9 @@ type DecodedData = Record<string, any>;
 //   args?: string[];
 // }
 
+const requestsPickedUp: Record<string, boolean> = {};
+const requestsHandled: Record<string, boolean> = {};
+
 export async function startSimulator() {
   const functionsRouter = await viem.deployContract("MockFunctionsRouter");
 
@@ -18,10 +27,13 @@ export async function startSimulator() {
   functionsRouter.watchEvent.RequestCreated({
     onLogs: async (logs) => {
       for (const log of logs) {
-        const { data } = log.args;
+        const { data, requestId } = log.args;
+
+        if (requestsPickedUp[requestId || "0x"]) continue;
+
+        requestsPickedUp[requestId || "0x"] = true;
 
         const decodedCBORData = cbor.decodeAllSync(hexToBytes(data || "0x"));
-        console.log(decodedCBORData);
 
         const decodedData: DecodedData = {};
 
@@ -32,15 +44,18 @@ export async function startSimulator() {
           decodedData[tag] = value;
         }
 
-        console.log(decodedData);
-
-        const code = `class Functions {
+        const code = `
+        class Functions {
           static encodeString(s) {
-            return s
+            return [["string"], [s]]
           }
         }
 
-        const args = ${decodedData["args"]};
+        ${
+          decodedData["args"]
+            ? `const args = ${JSON.stringify(decodedData["args"])}`
+            : ""
+        }
 
         function main() {
           ${decodedData["source"]}
@@ -49,16 +64,58 @@ export async function startSimulator() {
         main()
         `;
 
-        const output = await eval(code);
-        console.log(output);
+        try {
+          const [types, values] = await eval(code);
 
-        // if (data) console.log(await cbor.decodeAll(data, "cborseq"));
-        // console.log(
-        //   decodeAbiParameters(["string", "string", "string"], data)
-        // );
+          const result = encodePacked(types, values);
+          await functionsRouter.write.fulfill([
+            requestId || "0x",
+            result,
+            "0x",
+          ]);
+        } catch (e) {
+          console.log(e);
+        }
+
+        requestsHandled[requestId || "0x"] = true;
       }
     },
   });
 
   return functionsRouter.address;
+}
+
+export async function waitForRequestHandling(
+  client: PublicClient,
+  contractAddress: `0x${string}`,
+  hash: `0x${string}`
+) {
+  const receipt = await client.getTransactionReceipt({ hash });
+  const topicId = keccak256(stringToBytes("RequestSent(bytes32)"));
+  const log = receipt.logs.filter(
+    (log) => log.address === contractAddress && log.topics[0] === topicId
+  )[0];
+
+  if (!log) throw "functions request not sent";
+
+  const requestId = log.topics[1];
+  if (!requestId) throw "invalid event emitted";
+
+  let pickedUp = false;
+
+  await new Promise((resolve, reject) => {
+    const interval = setInterval(() => {
+      if (!pickedUp && requestsPickedUp[requestId]) {
+        pickedUp = true;
+        console.log(`Request id ${requestId} is picked up by the node`);
+      }
+
+      if (requestsHandled[requestId]) {
+        clearInterval(interval);
+        resolve(null);
+      }
+    }, 50);
+  });
+
+  return;
 }
