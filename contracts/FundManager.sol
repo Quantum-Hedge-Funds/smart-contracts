@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {FunctionsClient} from "@chainlink/contracts/src/v0.8/functions/dev/v1_0_0/FunctionsClient.sol";
 import {FunctionsRequest} from "@chainlink/contracts/src/v0.8/functions/dev/v1_0_0/libraries/FunctionsRequest.sol";
 
+import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract FundManager is Ownable, FunctionsClient {
@@ -16,17 +17,24 @@ contract FundManager is Ownable, FunctionsClient {
     uint32 gasLimit;
     bytes encryptedSecretsUrls;
 
-    event CircuitAdded(string circuitQASM, bytes32 circuitHash);
-    event CircuitJobSent(bytes32 circuitHash, string jobId);
-    event CircuitResultAsked(bytes32 circuitHash, string jobId);
-    event CircuitResultUpdated(
-        bytes32 circuitHash,
-        string jobId,
-        string result
-    );
+    struct Token {
+        uint256 id;
+        string symbol;
+        address contractAddress;
+        bool isActive;
+    }
+
+    mapping(uint256 => Token) public tokens;
+    mapping(address => uint256) public tokenAddressToId;
+
+    uint256 totalTokens;
+    uint256 totalTokenIds;
+    uint256[] public activeTokenIds;
+
     event ChainlinkResponse(bytes32 requestId, bytes response, bytes err);
-    event SourceUpdatedForAddingCircuit(string sourceForAddingCircuit);
-    event SourceUpdatedForFetchingResult(string sourceForFetchingResult);
+
+    error TokenAlreadyAdded();
+    error TokenNotFound();
 
     error InvalidValueSent();
     error CircuitAlreadyInSystem();
@@ -38,6 +46,67 @@ contract FundManager is Ownable, FunctionsClient {
     constructor(
         address chainlinkFunctionsRouter
     ) FunctionsClient(chainlinkFunctionsRouter) Ownable(msg.sender) {}
+
+    function addToken(
+        address tokenContractAddress,
+        string calldata symbol
+    ) public onlyOwner {
+        uint256 previousTokenId = tokenAddressToId[tokenContractAddress];
+        if (tokens[previousTokenId].isActive) revert TokenAlreadyAdded();
+
+        uint256 tokenId = ++totalTokenIds;
+        totalTokens++;
+
+        tokens[tokenId] = Token({
+            id: tokenId,
+            symbol: symbol,
+            contractAddress: tokenContractAddress,
+            isActive: true
+        });
+        activeTokenIds.push(tokenId);
+        tokenAddressToId[tokenContractAddress] = tokenId;
+    }
+
+    function removeToken(address tokenContractAddress) public onlyOwner {
+        uint256 tokenId = tokenAddressToId[tokenContractAddress];
+        if (!tokens[tokenId].isActive) revert TokenNotFound();
+
+        // TODO: sell all the positions for this token and buy for other tokens
+
+        tokens[tokenId].isActive = false;
+
+        for (uint256 i = 0; i < totalTokens; i++) {
+            if (activeTokenIds[i] == tokenId) {
+                activeTokenIds[i] = activeTokenIds[totalTokens - 1];
+                break;
+            }
+        }
+        activeTokenIds.pop();
+
+        totalTokens--;
+    }
+
+    function getJSONTokenSymbolList() public view returns (string memory) {
+        string memory output = '{"tokens":[';
+        for (uint256 i = 0; i < totalTokens; i++) {
+            uint256 tokenId = activeTokenIds[i];
+            Token memory token = tokens[tokenId];
+            output = string.concat(
+                output,
+                '{"id": ',
+                Strings.toString(tokenId),
+                ', "symbol": "',
+                token.symbol,
+                '"}'
+            );
+            if (i != totalTokens - 1) {
+                output = string.concat(output, ",");
+            }
+        }
+        output = string.concat(output, "]}");
+
+        return output;
+    }
 
     function setSubscriptionId(uint64 _subscriptionId) public onlyOwner {
         subscriptionId = _subscriptionId;

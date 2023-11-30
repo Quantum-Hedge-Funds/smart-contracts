@@ -81,6 +81,48 @@ describe("Fund Manager", function () {
     console.log(await fundManager.read.result());
   });
 
+  it("Should add a token in the contract", async () => {
+    await fundManager.write.addToken([accounts[1].address, "ethereum"]);
+
+    const tokenList = JSON.parse(
+      await fundManager.read.getJSONTokenSymbolList()
+    );
+
+    expect(tokenList).to.deep.eq({
+      tokens: [{ id: 1, symbol: "ethereum" }],
+    });
+  });
+
+  it("Should not add the token again in the contract if already there", async () => {
+    await expect(
+      fundManager.write.addToken([accounts[1].address, "ethereum"])
+    ).to.be.rejectedWith("TokenAlreadyAdded");
+  });
+
+  it("Should remove a token from the contract", async () => {
+    await fundManager.write.removeToken([accounts[1].address]);
+
+    const tokenList = JSON.parse(
+      await fundManager.read.getJSONTokenSymbolList()
+    );
+
+    expect(tokenList).to.deep.eq({
+      tokens: [],
+    });
+  });
+
+  it("Should be able to add a token in the contract after it was removed", async () => {
+    await fundManager.write.addToken([accounts[1].address, "ethereum"]);
+
+    const tokenList = JSON.parse(
+      await fundManager.read.getJSONTokenSymbolList()
+    );
+
+    expect(tokenList).to.deep.eq({
+      tokens: [{ id: 2, symbol: "ethereum" }],
+    });
+  });
+
   // We define a fixture to reuse the same setup in every test.
   // We use loadFixture to run this setup once, snapshot that state,
   // and reset Hardhat Network to that snapshot in every test.
