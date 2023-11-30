@@ -1,12 +1,7 @@
 import { viem } from "hardhat";
 import { hexToBytes, encodePacked } from "viem";
 import cbor from "cbor";
-import {
-  PublicClient,
-  keccak256,
-  stringToBytes,
-  decodeAbiParameters,
-} from "viem";
+import { PublicClient, keccak256, stringToBytes } from "viem";
 
 type DecodedData = Record<string, any>;
 

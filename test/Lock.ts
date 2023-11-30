@@ -77,12 +77,8 @@ describe("Fund Manager", function () {
     ]);
 
     await waitForRequestHandling(publicClient, fundManager.address, hash);
-    // const receipt = await publicClient.getTransactionReceipt({ hash });
-    // console.log(fundManager.address);
 
-    // console.log(keccak256(stringToBytes("RequestSent(bytes32)")));
-
-    // console.log(receipt.logs);
+    console.log(await fundManager.read.result());
   });
 
   // We define a fixture to reuse the same setup in every test.
