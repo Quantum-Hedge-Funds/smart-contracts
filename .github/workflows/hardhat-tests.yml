@@ -22,3 +22,6 @@ jobs:
 
       - name: Run Hardhat Tests
         run: npx hardhat test
+        with:
+          PRIVATE_KEY: ${{env.PRIVATE_KEY}}
+          PINATA_API_KEY: ${{env.PINATA_API_KEY}}
