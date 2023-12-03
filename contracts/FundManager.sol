@@ -8,15 +8,22 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract FundManager is Ownable, FunctionsClient {
+    // chainlink config
     using FunctionsRequest for FunctionsRequest.Request;
 
     uint8 public donHostedSecretsSlotID;
     uint64 public donHostedSecretsVersion;
     bytes32 public donId;
     uint64 subscriptionId;
-    uint32 gasLimit;
-    bytes encryptedSecretsUrls;
+    uint32 gasLimitForPriceFetchFunction;
+    uint32 gasLimitForAssetOptimizationFunction;
+    bytes encryptedSecretsUrlsForPriceFetchFunction;
+    bytes encryptedSecretsUrlsForAssetOptimizationFunction;
 
+    // chainlink functions
+    string public priceFetchSourceCode;
+
+    // tokens config
     struct Token {
         uint256 id;
         string symbol;
@@ -30,6 +37,24 @@ contract FundManager is Ownable, FunctionsClient {
     uint256 totalTokens;
     uint256 totalTokenIds;
     uint256[] public activeTokenIds;
+
+    // refresh requests
+    struct RefreshRequest {
+        uint256 id;
+        uint256 totalBatches;
+        uint256 totalBatchesFulfilled;
+        bool fulfilled;
+    }
+    uint256 public totalRefreshRequests;
+    mapping(uint256 => RefreshRequest) public refreshRequests;
+    mapping(uint256 => bytes32[]) public refreshRequestIds;
+    struct RequestStatus {
+        uint256 refreshRequestId;
+        uint256 index;
+        bool fulfilled;
+        string dataHash;
+    }
+    mapping(bytes32 => RequestStatus) public requestStatuses;
 
     event ChainlinkResponse(bytes32 requestId, bytes response, bytes err);
 
@@ -86,26 +111,79 @@ contract FundManager is Ownable, FunctionsClient {
         totalTokens--;
     }
 
-    function getJSONTokenSymbolList() public view returns (string memory) {
-        string memory output = '{"tokens":[';
-        for (uint256 i = 0; i < totalTokens; i++) {
-            uint256 tokenId = activeTokenIds[i];
-            Token memory token = tokens[tokenId];
-            output = string.concat(
-                output,
-                '{"id": ',
-                Strings.toString(tokenId),
-                ', "symbol": "',
-                token.symbol,
-                '"}'
-            );
-            if (i != totalTokens - 1) {
-                output = string.concat(output, ",");
-            }
+    function getJSONTokenSymbolList(
+        uint256 limit
+    ) public view returns (string[] memory) {
+        uint256 pages = totalTokens / limit;
+        if (totalTokens % limit != 0) {
+            pages += 1;
         }
-        output = string.concat(output, "]}");
 
-        return output;
+        string[] memory outputStrings = new string[](pages);
+        for (uint256 pageId = 0; pageId < pages; pageId++) {
+            string memory output = '{"tokens":[';
+            uint256 upperBound = min((pageId + 1) * limit, totalTokens);
+            for (uint256 i = pageId * limit; i < upperBound; i++) {
+                uint256 tokenId = activeTokenIds[i];
+                Token memory token = tokens[tokenId];
+                output = string.concat(
+                    output,
+                    '{"id": ',
+                    Strings.toString(tokenId),
+                    ', "symbol": "',
+                    token.symbol,
+                    '"}'
+                );
+                if (i != upperBound - 1) {
+                    output = string.concat(output, ",");
+                }
+            }
+            output = string.concat(output, "]}");
+            outputStrings[pageId] = output;
+        }
+
+        return outputStrings;
+    }
+
+    function min(uint256 a, uint256 b) public pure returns (uint256) {
+        if (a < b) return a;
+        return b;
+    }
+
+    function setPriceFetchSourceCode(
+        string calldata _priceFetchSourceCode
+    ) public onlyOwner {
+        priceFetchSourceCode = _priceFetchSourceCode;
+    }
+
+    function initiateProportionRefresh() public {
+        string[] memory symbolsPaginated = getJSONTokenSymbolList(4);
+
+        uint256 refreshId = ++totalRefreshRequests;
+        refreshRequests[refreshId] = RefreshRequest({
+            id: refreshId,
+            totalBatches: symbolsPaginated.length,
+            totalBatchesFulfilled: 0,
+            fulfilled: false
+        });
+
+        for (uint256 i = 0; i < symbolsPaginated.length; i++) {
+            string[] memory args = new string[](1);
+            args[0] = symbolsPaginated[i];
+            bytes32 requestId = sendRequest(
+                priceFetchSourceCode,
+                args,
+                encryptedSecretsUrlsForPriceFetchFunction,
+                gasLimitForPriceFetchFunction
+            );
+            refreshRequestIds[refreshId].push(requestId);
+            requestStatuses[requestId] = RequestStatus({
+                refreshRequestId: refreshId,
+                index: i,
+                fulfilled: false,
+                dataHash: ""
+            });
+        }
     }
 
     function setSubscriptionId(uint64 _subscriptionId) public onlyOwner {
@@ -122,30 +200,22 @@ contract FundManager is Ownable, FunctionsClient {
         donId = _donId;
     }
 
-    function setEncryptedSecretUrls(
+    function setEncryptedSecretUrlsForPriceFetchFunction(
         bytes calldata _encryptedSecretsUrls
     ) public onlyOwner {
-        encryptedSecretsUrls = _encryptedSecretsUrls;
+        encryptedSecretsUrlsForPriceFetchFunction = _encryptedSecretsUrls;
     }
 
-    function setGasLimit(uint32 _gasLimit) public onlyOwner {
-        gasLimit = _gasLimit;
-    }
-
-    function makeRequest(string calldata sourceCode) public payable {
-        // bytes32 circuitHash = keccak256(abi.encode(circuitQASM));
-        // if (status[circuitHash] != Status.NON_EXISTENT) revert CircuitAlreadyInSystem();
-        // if (calculateCost(circuitQASM) != msg.value) revert InvalidValueSent();
-
-        // send the request to chainlink
-        string[] memory args = new string[](1);
-        args[0] = "Hello World";
-        sendRequest(sourceCode, args, gasLimit);
+    function setGasLimitForPriceFetchFunction(
+        uint32 _gasLimit
+    ) public onlyOwner {
+        gasLimitForPriceFetchFunction = _gasLimit;
     }
 
     function sendRequest(
         string memory source,
         string[] memory args,
+        bytes memory encryptedSecretsUrls,
         // bytes[] memory bytesArgs,
         uint32 gasLimit
     ) internal returns (bytes32 requestId) {
