@@ -9,8 +9,8 @@ jobs:
   test:
     runs-on: ubuntu-latest
     env:
-      PRIVATE_KEY: ${{env.PRIVATE_KEY}}
-      PINATA_API_KEY: ${{env.PINATA_API_KEY}}
+      PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+      PINATA_API_KEY: ${{ secrets.PINATA_API_KEY }}
 
     steps:
       - uses: actions/checkout@v2
