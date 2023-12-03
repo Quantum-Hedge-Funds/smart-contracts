@@ -8,6 +8,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      PRIVATE_KEY: ${{env.PRIVATE_KEY}}
+      PINATA_API_KEY: ${{env.PINATA_API_KEY}}
 
     steps:
       - uses: actions/checkout@v2
@@ -22,6 +25,3 @@ jobs:
 
       - name: Run Hardhat Tests
         run: npx hardhat test
-        with:
-          PRIVATE_KEY: ${{env.PRIVATE_KEY}}
-          PINATA_API_KEY: ${{env.PINATA_API_KEY}}
