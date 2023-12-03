@@ -15,9 +15,14 @@ type DecodedData = Record<string, any>;
 const requestsPickedUp: Record<string, boolean> = {};
 const requestsHandled: Record<string, boolean> = {};
 
-export async function startSimulator() {
+export async function startSimulator({
+  secrets,
+}: {
+  secrets: Record<string, string>;
+}) {
   const functionsRouter = await viem.deployContract("MockFunctionsRouter");
 
+  // const eventFilter = functionsRouter.createEventFilter.RequestCreated();
   functionsRouter.watchEvent.RequestCreated({
     onLogs: async (logs) => {
       for (const log of logs) {
@@ -43,7 +48,23 @@ export async function startSimulator() {
           static encodeString(s) {
             return [["string"], [s]]
           }
+          
+          static async makeHttpRequest({url, method, data, headers}) {
+            try {
+
+              const response = await fetch(url, {method: method || "GET", body: data ? JSON.stringify(data) : undefined, headers: headers || undefined});
+              
+              return {
+                error: response.status >= 400,
+                data: await response.json()
+              }
+            } catch (err) {
+              return {error: true}
+            }
+          }
         }
+
+        const secrets = ${JSON.stringify(secrets)};
 
         ${
           decodedData["args"]
@@ -51,7 +72,7 @@ export async function startSimulator() {
             : ""
         }
 
-        function main() {
+        async function main() {
           ${decodedData["source"]}
         }
         
@@ -60,6 +81,8 @@ export async function startSimulator() {
 
         try {
           const [types, values] = await eval(code);
+
+          console.log(values);
 
           const result = encodePacked(types, values);
           await functionsRouter.write.fulfill([
@@ -86,30 +109,32 @@ export async function waitForRequestHandling(
 ) {
   const receipt = await client.getTransactionReceipt({ hash });
   const topicId = keccak256(stringToBytes("RequestSent(bytes32)"));
-  const log = receipt.logs.filter(
+  const logs = receipt.logs.filter(
     (log) => log.address === contractAddress && log.topics[0] === topicId
-  )[0];
+  );
 
-  if (!log) throw "functions request not sent";
+  for (const log of logs) {
+    if (!log) throw "functions request not sent";
 
-  const requestId = log.topics[1];
-  if (!requestId) throw "invalid event emitted";
+    const requestId = log.topics[1];
+    if (!requestId) throw "invalid event emitted";
 
-  let pickedUp = false;
+    let pickedUp = false;
 
-  await new Promise((resolve, reject) => {
-    const interval = setInterval(() => {
-      if (!pickedUp && requestsPickedUp[requestId]) {
-        pickedUp = true;
-        console.log(`Request id ${requestId} is picked up by the node`);
-      }
+    await new Promise((resolve, reject) => {
+      const interval = setInterval(() => {
+        if (!pickedUp && requestsPickedUp[requestId]) {
+          pickedUp = true;
+          console.log(`Request id ${requestId} is picked up by the node`);
+        }
 
-      if (requestsHandled[requestId]) {
-        clearInterval(interval);
-        resolve(null);
-      }
-    }, 50);
-  });
+        if (requestsHandled[requestId]) {
+          clearInterval(interval);
+          resolve(null);
+        }
+      }, 50);
+    });
+  }
 
   return;
 }

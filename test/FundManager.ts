@@ -1,10 +1,5 @@
-import {
-  time,
-  loadFixture,
-} from "@nomicfoundation/hardhat-toolbox-viem/network-helpers";
 import { expect } from "chai";
 import hre, { viem } from "hardhat";
-import { getAddress, parseGwei } from "viem";
 import {
   WalletClient,
   PublicClient,
@@ -55,7 +50,11 @@ describe("Fund Manager", function () {
       if (wallet.account) accounts.push(wallet.account);
     }
 
-    functionsRouterAddress = await startSimulator();
+    functionsRouterAddress = await startSimulator({
+      secrets: {
+        pinataAPIKey: process.env.PINATA_API_KEY || "",
+      },
+    });
 
     fundManager = await viem.deployContract("FundManager", [
       functionsRouterAddress,
@@ -69,31 +68,18 @@ describe("Fund Manager", function () {
       stringToHex(donId, { size: 32 }),
     ]);
 
-    await fundManager.write.setGasLimit([gasLimit]);
+    await fundManager.write.setGasLimitForPriceFetchFunction([gasLimit]);
 
     await fundManager.write.setSubscriptionId([BigInt(subscriptionId)]);
 
     // await fundManager.write.setEncryptedSecretUrls([stringToHex("")]);
   });
 
-  it("Should make a request", async () => {
-    const functionSourceCode = fs.readFileSync(
-      "./chainlinkFunctions/fetchPastPrices.js"
-    );
-    const hash = await fundManager.write.makeRequest([
-      functionSourceCode.toString(),
-    ]);
-
-    await waitForRequestHandling(publicClient, fundManager.address, hash);
-
-    console.log(await fundManager.read.result());
-  });
-
   it("Should add a token in the contract", async () => {
     await fundManager.write.addToken([accounts[1].address, "ethereum"]);
 
     const tokenList = JSON.parse(
-      await fundManager.read.getJSONTokenSymbolList()
+      (await fundManager.read.getJSONTokenSymbolList([10n]))[0]
     );
 
     expect(tokenList).to.deep.eq({
@@ -110,20 +96,16 @@ describe("Fund Manager", function () {
   it("Should remove a token from the contract", async () => {
     await fundManager.write.removeToken([accounts[1].address]);
 
-    const tokenList = JSON.parse(
-      await fundManager.read.getJSONTokenSymbolList()
-    );
-
-    expect(tokenList).to.deep.eq({
-      tokens: [],
-    });
+    expect(
+      (await fundManager.read.getJSONTokenSymbolList([10n])).length
+    ).to.be.eq(0);
   });
 
   it("Should be able to add a token in the contract after it was removed", async () => {
     await fundManager.write.addToken([accounts[1].address, "ethereum"]);
 
     const tokenList = JSON.parse(
-      await fundManager.read.getJSONTokenSymbolList()
+      (await fundManager.read.getJSONTokenSymbolList([10n]))[0]
     );
 
     expect(tokenList).to.deep.eq({
@@ -142,7 +124,7 @@ describe("Fund Manager", function () {
     }
 
     const tokenList = JSON.parse(
-      await fundManager.read.getJSONTokenSymbolList()
+      (await fundManager.read.getJSONTokenSymbolList([10n]))[0]
     );
 
     expect(tokenList).to.deep.eq({
@@ -162,7 +144,9 @@ describe("Fund Manager", function () {
   it("Should remove one token and add another", async () => {
     await fundManager.write.removeToken([accounts[1].address]);
 
-    let tokenList = JSON.parse(await fundManager.read.getJSONTokenSymbolList());
+    let tokenList = JSON.parse(
+      (await fundManager.read.getJSONTokenSymbolList([10n]))[0]
+    );
 
     expect(tokenList).to.deep.eq({
       tokens: [
@@ -183,7 +167,9 @@ describe("Fund Manager", function () {
       supportedTokens[0].symbol,
     ]);
 
-    tokenList = JSON.parse(await fundManager.read.getJSONTokenSymbolList());
+    tokenList = JSON.parse(
+      (await fundManager.read.getJSONTokenSymbolList([10n]))[0]
+    );
 
     expect(tokenList).to.deep.eq({
       tokens: [
@@ -197,5 +183,25 @@ describe("Fund Manager", function () {
         { id: 10, symbol: "ethereum" },
       ],
     });
+  });
+
+  it("Should update the price fetch source code", async () => {
+    const functionSourceCode = fs.readFileSync(
+      "./chainlinkFunctions/fetchPastPrices.js"
+    );
+
+    await fundManager.write.setPriceFetchSourceCode([
+      functionSourceCode.toString("utf-8"),
+    ]);
+
+    expect(await fundManager.read.priceFetchSourceCode()).to.be.eq(
+      functionSourceCode.toString("utf-8")
+    );
+  });
+
+  it("Should initiate proportion refresh", async () => {
+    const hash = await fundManager.write.initiateProportionRefresh();
+
+    await waitForRequestHandling(publicClient, fundManager.address, hash);
   });
 });
