@@ -1,4 +1,5 @@
 import {
+  Abi,
   Account,
   Chain,
   GetContractReturnType,
@@ -12,25 +13,27 @@ import { viem } from "hardhat";
 import { MockERC20$Type } from "../artifacts/contracts/test/MockERC20.sol/MockERC20";
 import { IERC20$Type } from "../artifacts/@openzeppelin/contracts/token/ERC20/IERC20.sol/IERC20";
 import { expect } from "chai";
+import { startSimulator } from "./chainlink-functions-simulators";
+import { FundManager$Type } from "../artifacts/contracts/FundManager.sol/FundManager";
+import { MockUniswapRouter$Type } from "../artifacts/contracts/test/MockUniswapRouter.sol/MockUniswapRouter";
+
+type Contract<TAbi extends Abi | readonly unknown[]> = GetContractReturnType<
+  TAbi,
+  PublicClient<Transport, Chain>,
+  WalletClient<Transport, Chain, Account>
+>;
 
 describe("Vault", function () {
   let wallets: WalletClient[];
   let publicClient: PublicClient;
-  let vault: GetContractReturnType<
-    Vault$Type["abi"],
-    PublicClient<Transport, Chain>,
-    WalletClient<Transport, Chain, Account>
-  >;
-  let usdc: GetContractReturnType<
-    MockERC20$Type["abi"],
-    PublicClient<Transport, Chain>,
-    WalletClient<Transport, Chain, Account>
-  >;
-  let vaultShare: GetContractReturnType<
-    IERC20$Type["abi"],
-    PublicClient<Transport, Chain>,
-    WalletClient<Transport, Chain, Account>
-  >;
+  let functionsRouterAddress: `0x${string}`;
+
+  let vault: Contract<Vault$Type["abi"]>;
+  let usdc: Contract<MockERC20$Type["abi"]>;
+  let vaultShare: Contract<IERC20$Type["abi"]>;
+  let fundManager: Contract<FundManager$Type["abi"]>;
+  let mockUniswapRouter: Contract<MockUniswapRouter$Type["abi"]>;
+
   const accounts: Account[] = [];
 
   this.beforeAll(async () => {
@@ -43,7 +46,26 @@ describe("Vault", function () {
 
     usdc = await viem.deployContract("MockERC20", []);
 
-    vault = await viem.deployContract("Vault", [usdc.address]);
+    functionsRouterAddress = await startSimulator({
+      secrets: {
+        pinataAPIKey: process.env.PINATA_API_KEY || "",
+      },
+    });
+
+    fundManager = await viem.deployContract("FundManager", [
+      functionsRouterAddress,
+    ]);
+
+    mockUniswapRouter = await viem.deployContract("MockUniswapRouter", [
+      fundManager.address,
+      usdc.address,
+    ]);
+
+    vault = await viem.deployContract("Vault", [
+      usdc.address,
+      fundManager.address,
+      mockUniswapRouter.address,
+    ]);
 
     const shareTokenAddress = await vault.read.shareToken();
 
