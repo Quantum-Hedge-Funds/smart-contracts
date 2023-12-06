@@ -22,7 +22,6 @@ export async function startSimulator({
 }) {
   const functionsRouter = await viem.deployContract("MockFunctionsRouter");
 
-  // const eventFilter = functionsRouter.createEventFilter.RequestCreated();
   functionsRouter.watchEvent.RequestCreated({
     onLogs: async (logs) => {
       for (const log of logs) {
@@ -42,7 +41,6 @@ export async function startSimulator({
 
           decodedData[tag] = value;
         }
-
         const code = `
         class Functions {
           static encodeString(s) {
