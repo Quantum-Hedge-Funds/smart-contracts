@@ -8,6 +8,7 @@ import {
   Transport,
   Chain,
   stringToHex,
+  zeroAddress,
 } from "viem";
 import {
   startSimulator,
@@ -76,7 +77,11 @@ describe("Fund Manager", function () {
   });
 
   it("Should add a token in the contract", async () => {
-    await fundManager.write.addToken([accounts[1].address, "ethereum"]);
+    await fundManager.write.addToken([
+      accounts[1].address,
+      zeroAddress,
+      "ethereum",
+    ]);
 
     const tokenList = JSON.parse(
       (await fundManager.read.getJSONTokenSymbolList([10n]))[0]
@@ -89,7 +94,7 @@ describe("Fund Manager", function () {
 
   it("Should not add the token again in the contract if already there", async () => {
     await expect(
-      fundManager.write.addToken([accounts[1].address, "ethereum"])
+      fundManager.write.addToken([accounts[1].address, zeroAddress, "ethereum"])
     ).to.be.rejectedWith("TokenAlreadyAdded");
   });
 
@@ -102,7 +107,11 @@ describe("Fund Manager", function () {
   });
 
   it("Should be able to add a token in the contract after it was removed", async () => {
-    await fundManager.write.addToken([accounts[1].address, "ethereum"]);
+    await fundManager.write.addToken([
+      accounts[1].address,
+      zeroAddress,
+      "ethereum",
+    ]);
 
     const tokenList = JSON.parse(
       (await fundManager.read.getJSONTokenSymbolList([10n]))[0]
@@ -119,6 +128,7 @@ describe("Fund Manager", function () {
 
       await fundManager.write.addToken([
         tokenContract.address,
+        zeroAddress,
         supportedToken.symbol,
       ]);
     }
@@ -164,6 +174,7 @@ describe("Fund Manager", function () {
 
     await fundManager.write.addToken([
       tokenContract.address,
+      zeroAddress,
       supportedTokens[0].symbol,
     ]);
 
