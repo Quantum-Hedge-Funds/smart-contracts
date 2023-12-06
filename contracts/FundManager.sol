@@ -28,6 +28,7 @@ contract FundManager is Ownable, FunctionsClient {
         uint256 id;
         string symbol;
         address contractAddress;
+        address chainlinkUSDDataFeed;
         bool isActive;
     }
 
@@ -74,6 +75,7 @@ contract FundManager is Ownable, FunctionsClient {
 
     function addToken(
         address tokenContractAddress,
+        address chainlinkUSDDataFeed,
         string calldata symbol
     ) public onlyOwner {
         uint256 previousTokenId = tokenAddressToId[tokenContractAddress];
@@ -86,6 +88,7 @@ contract FundManager is Ownable, FunctionsClient {
             id: tokenId,
             symbol: symbol,
             contractAddress: tokenContractAddress,
+            chainlinkUSDDataFeed: chainlinkUSDDataFeed,
             isActive: true
         });
         activeTokenIds.push(tokenId);
