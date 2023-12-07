@@ -1,6 +1,8 @@
 import { viem } from "hardhat";
 
 const chainlinkFunctionsRouter = "0x6E2dc0F9DB014aE19888F539E59285D2Ea04244C";
+const uniswapV2RouterAddress = "0x";
+const stableTokenAddress = "0x";
 
 async function main() {
   const fundManager = await viem.deployContract("FundManager", [
@@ -8,20 +10,14 @@ async function main() {
   ]);
 
   console.log(`Fund Manager is deployed to ${fundManager.address}`);
-  const usdc = await viem.deployContract("MockERC20", []);
-
-  const mockUniswapRouter = await viem.deployContract("MockUniswapRouter", [
-    fundManager.address,
-    usdc.address,
-  ]);
 
   const vault = await viem.deployContract("Vault", [
-    usdc.address,
+    stableTokenAddress,
     fundManager.address,
-    mockUniswapRouter.address,
+    uniswapV2RouterAddress,
   ]);
 
-  console.log(`Fund Manager is deployed to ${vault.address}`);
+  console.log(`Vault Contract is deployed to ${vault.address}`);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
