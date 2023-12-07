@@ -9,6 +9,8 @@ import {
   Chain,
   stringToHex,
   zeroAddress,
+  keccak256,
+  encodePacked,
 } from "viem";
 import {
   startSimulator,
@@ -196,17 +198,41 @@ describe("Fund Manager", function () {
     });
   });
 
-  it("Should update the price fetch source code", async () => {
-    const functionSourceCode = fs.readFileSync(
+  it("Should update the functions source code", async () => {
+    const fetchPastPricesFunctionSourceCode = fs.readFileSync(
       "./chainlinkFunctions/fetchPastPrices.js"
     );
 
     await fundManager.write.setPriceFetchSourceCode([
-      functionSourceCode.toString("utf-8"),
+      fetchPastPricesFunctionSourceCode.toString("utf-8"),
     ]);
 
     expect(await fundManager.read.priceFetchSourceCode()).to.be.eq(
-      functionSourceCode.toString("utf-8")
+      fetchPastPricesFunctionSourceCode.toString("utf-8")
+    );
+
+    const scheduleOptimizationFunctionSourceCode = fs.readFileSync(
+      "./chainlinkFunctions/scheduleOptimization.js"
+    );
+
+    await fundManager.write.setScheduleOptimizationSourceCode([
+      scheduleOptimizationFunctionSourceCode.toString("utf-8"),
+    ]);
+
+    expect(await fundManager.read.scheduleOptimizationSourceCode()).to.be.eq(
+      scheduleOptimizationFunctionSourceCode.toString("utf-8")
+    );
+
+    const fetchResultFunctionSourceCode = fs.readFileSync(
+      "./chainlinkFunctions/fetchResult.js"
+    );
+
+    await fundManager.write.setResultFetchSourceCode([
+      fetchResultFunctionSourceCode.toString("utf-8"),
+    ]);
+
+    expect(await fundManager.read.resultFetchSourceCode()).to.be.eq(
+      fetchResultFunctionSourceCode.toString("utf-8")
     );
   });
 
@@ -214,5 +240,29 @@ describe("Fund Manager", function () {
     const hash = await fundManager.write.initiateProportionRefresh();
 
     await waitForRequestHandling(publicClient, fundManager.address, hash);
+
+    expect(await fundManager.read.totalRefreshRequests()).to.be.eq(1n);
+    const request = await fundManager.read.refreshRequests([1n]);
+    expect(request[0]).to.be.eq(1n);
+    expect(request[1]).to.be.eq(2n);
+    expect(request[2]).to.be.eq(2n);
+    expect(request[3]).to.be.eq(true);
+    expect(request[4]).to.be.eq(keccak256(encodePacked(["uint256"], [2n])));
+    expect(request[5]).to.be.eq(true);
+    expect(request[6]).to.be.not.eq("");
+    console.log(request);
+    expect(request[7]).to.be.eq(false);
+
+    // expect(await fundManager.read.requestTypes()).to.be.eq(
+  });
+
+  it("Should fetch the result", async () => {
+    const hash = await fundManager.write.fetchData();
+
+    await waitForRequestHandling(publicClient, fundManager.address, hash);
+
+    const request = await fundManager.read.refreshRequests([1n]);
+
+    expect(request[7]).to.be.eq(true);
   });
 });

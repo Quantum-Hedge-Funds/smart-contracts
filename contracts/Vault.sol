@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./VaultShareToken.sol";
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import "./FundManager.sol";
-import "./interfaces/ExtendedIERC20.sol";
 import "@uniswap/v2-core/contracts/interfaces/IUniswapV2Factory.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+
+import "./VaultShareToken.sol";
+import "./FundManager.sol";
+import "./interfaces/ExtendedIERC20.sol";
 
 contract Vault {
     VaultShareToken public shareToken;

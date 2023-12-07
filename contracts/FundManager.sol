@@ -15,13 +15,28 @@ contract FundManager is Ownable, FunctionsClient {
     uint64 public donHostedSecretsVersion;
     bytes32 public donId;
     uint64 subscriptionId;
+
     uint32 gasLimitForPriceFetchFunction;
-    uint32 gasLimitForAssetOptimizationFunction;
+    uint32 gasLimitForScheduleOptimizationFunction;
+    uint32 gasLimitForResultFetchFunction;
+
     bytes encryptedSecretsUrlsForPriceFetchFunction;
-    bytes encryptedSecretsUrlsForAssetOptimizationFunction;
+    bytes encryptedSecretsUrlsForScheduleOptimizationFunction;
+    bytes encryptedSecretsUrlsForResultFetchFunction;
 
     // chainlink functions
     string public priceFetchSourceCode;
+    string public scheduleOptimizationSourceCode;
+    string public resultFetchSourceCode;
+
+    // define request types
+    enum RequestType {
+        NON_EXISTENT,
+        PRICE_FETCH,
+        SCHEDULE_OPTIMIZATION,
+        RESULT_FETCH
+    }
+    mapping(bytes32 => RequestType) public requestTypes;
 
     // tokens config
     struct Token {
@@ -45,6 +60,10 @@ contract FundManager is Ownable, FunctionsClient {
         uint256 totalBatches;
         uint256 totalBatchesFulfilled;
         bool fulfilled;
+        bytes32 scheduleOptimizationRequestId;
+        bool scheduled;
+        string jobId;
+        bool completed;
     }
     uint256 public totalRefreshRequests;
     mapping(uint256 => RefreshRequest) public refreshRequests;
@@ -56,6 +75,9 @@ contract FundManager is Ownable, FunctionsClient {
         string dataHash;
     }
     mapping(bytes32 => RequestStatus) public requestStatuses;
+    mapping(bytes32 => uint256)
+        public scheduleOptimizationRequestIdsToRefreshRequestIds;
+    mapping(bytes32 => uint256) public resultFetchRequestIdsToRefreshRequestIds;
 
     event ChainlinkResponse(bytes32 requestId, bytes response, bytes err);
 
@@ -159,6 +181,18 @@ contract FundManager is Ownable, FunctionsClient {
         priceFetchSourceCode = _priceFetchSourceCode;
     }
 
+    function setScheduleOptimizationSourceCode(
+        string calldata _scheduleOptimizationSourceCode
+    ) public onlyOwner {
+        scheduleOptimizationSourceCode = _scheduleOptimizationSourceCode;
+    }
+
+    function setResultFetchSourceCode(
+        string calldata _resultFetchSourceCode
+    ) public onlyOwner {
+        resultFetchSourceCode = _resultFetchSourceCode;
+    }
+
     function initiateProportionRefresh() public {
         string[] memory symbolsPaginated = getJSONTokenSymbolList(4);
 
@@ -167,7 +201,11 @@ contract FundManager is Ownable, FunctionsClient {
             id: refreshId,
             totalBatches: symbolsPaginated.length,
             totalBatchesFulfilled: 0,
-            fulfilled: false
+            fulfilled: false,
+            scheduleOptimizationRequestId: bytes32(""),
+            scheduled: false,
+            jobId: "",
+            completed: false
         });
 
         for (uint256 i = 0; i < symbolsPaginated.length; i++) {
@@ -186,6 +224,7 @@ contract FundManager is Ownable, FunctionsClient {
                 fulfilled: false,
                 dataHash: ""
             });
+            requestTypes[requestId] = RequestType.PRICE_FETCH;
         }
     }
 
@@ -209,10 +248,32 @@ contract FundManager is Ownable, FunctionsClient {
         encryptedSecretsUrlsForPriceFetchFunction = _encryptedSecretsUrls;
     }
 
+    function setEncryptedSecretUrlsForScheduleOptimizationFunction(
+        bytes calldata _encryptedSecretsUrls
+    ) public onlyOwner {
+        encryptedSecretsUrlsForScheduleOptimizationFunction = _encryptedSecretsUrls;
+    }
+
+    function setEncryptedSecretUrlsForResultFetchFunction(
+        bytes calldata _encryptedSecretsUrls
+    ) public onlyOwner {
+        encryptedSecretsUrlsForResultFetchFunction = _encryptedSecretsUrls;
+    }
+
     function setGasLimitForPriceFetchFunction(
         uint32 _gasLimit
     ) public onlyOwner {
         gasLimitForPriceFetchFunction = _gasLimit;
+    }
+
+    function setGasLimitForScheduleOptimizationFunction(
+        uint32 _gasLimit
+    ) public onlyOwner {
+        gasLimitForScheduleOptimizationFunction = _gasLimit;
+    }
+
+    function setGasLimitForResultFetch(uint32 _gasLimit) public onlyOwner {
+        gasLimitForResultFetchFunction = _gasLimit;
     }
 
     function sendRequest(
@@ -242,13 +303,122 @@ contract FundManager is Ownable, FunctionsClient {
         );
     }
 
+    function _scheduleOptimization(uint256 refreshRequestId) internal {
+        RefreshRequest storage refreshRequest = refreshRequests[
+            refreshRequestId
+        ];
+        uint256 totalBatches = refreshRequest.totalBatches;
+        string[] memory args = new string[](totalBatches + 1);
+        args[0] = Strings.toString(totalBatches);
+        for (uint256 i = 0; i < totalBatches; i++) {
+            args[i + 1] = requestStatuses[
+                refreshRequestIds[refreshRequestId][i]
+            ].dataHash;
+        }
+
+        bytes32 scheduleOptimizationRequestId = sendRequest(
+            scheduleOptimizationSourceCode,
+            args,
+            encryptedSecretsUrlsForScheduleOptimizationFunction,
+            gasLimitForScheduleOptimizationFunction
+        );
+        requestTypes[scheduleOptimizationRequestId] = RequestType
+            .SCHEDULE_OPTIMIZATION;
+        refreshRequest
+            .scheduleOptimizationRequestId = scheduleOptimizationRequestId;
+        scheduleOptimizationRequestIdsToRefreshRequestIds[
+            scheduleOptimizationRequestId
+        ] = refreshRequestId;
+    }
+
+    function fetchData() public {
+        RefreshRequest memory refreshRequest = refreshRequests[
+            totalRefreshRequests
+        ];
+
+        if (!refreshRequest.fulfilled) revert("Not fulfilled");
+
+        if (!refreshRequest.scheduled) revert("Not Scheduled");
+
+        if (refreshRequest.completed) revert("Already completed");
+
+        string[] memory args = new string[](1);
+        args[0] = refreshRequest.jobId;
+
+        bytes32 requestId = sendRequest(
+            resultFetchSourceCode,
+            args,
+            encryptedSecretsUrlsForResultFetchFunction,
+            gasLimitForResultFetchFunction
+        );
+
+        requestTypes[requestId] = RequestType.RESULT_FETCH;
+        resultFetchRequestIdsToRefreshRequestIds[requestId] = refreshRequest.id;
+    }
+
     function fulfillRequest(
         bytes32 requestId,
         bytes memory response,
         bytes memory err
     ) internal override {
-        // if (requestTypes[requestId] == RequestType.NON_EXISTENT) {
-        //     revert InvalidRequestId();
+        if (requestTypes[requestId] == RequestType.NON_EXISTENT) {
+            revert InvalidRequestId();
+        }
+
+        if (requestTypes[requestId] == RequestType.PRICE_FETCH) {
+            string memory dataCID = abi.decode(response, (string));
+            RequestStatus storage refreshRequestStatus = requestStatuses[
+                requestId
+            ];
+            if (refreshRequestStatus.fulfilled) revert("Already fulfilled");
+            refreshRequestStatus.dataHash = dataCID;
+            refreshRequestStatus.fulfilled = true;
+            RefreshRequest storage refreshRequest = refreshRequests[
+                refreshRequestStatus.refreshRequestId
+            ];
+            refreshRequest.totalBatchesFulfilled++;
+            if (
+                refreshRequest.totalBatchesFulfilled ==
+                refreshRequest.totalBatches
+            ) {
+                refreshRequest.fulfilled = true;
+                // initiate schedule optimization
+                _scheduleOptimization(refreshRequest.id);
+            }
+
+            return;
+        }
+
+        if (requestTypes[requestId] == RequestType.SCHEDULE_OPTIMIZATION) {
+            string memory jobId = abi.decode(response, (string));
+            RefreshRequest storage refreshRequest = refreshRequests[
+                scheduleOptimizationRequestIdsToRefreshRequestIds[requestId]
+            ];
+            refreshRequest.scheduled = true;
+            refreshRequest.jobId = jobId;
+            return;
+        }
+
+        if (requestTypes[requestId] == RequestType.RESULT_FETCH) {
+            RefreshRequest storage refreshRequest = refreshRequests[
+                resultFetchRequestIdsToRefreshRequestIds[requestId]
+            ];
+            refreshRequest.completed = true;
+            // string memory result = abi.decode(response, (string));
+            // result = result;
+            return;
+        }
+
+        // if (requestTypes[requestId] == RequestType.FETCH_RESULT) {
+        //     string memory result = abi.decode(response, (string));
+        //     result = result;
+        //     return;
+        // }
+
+        // if (requestTypes[requestId] == RequestType.RESULT_FETCH) {
+        //     string memory result = abi.decode(response, (string));
+        //     result = result;
+        //     return;
         // }
 
         // bytes32 circuitHash = requestIdToCircuitID[requestId];

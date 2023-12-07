@@ -16,7 +16,7 @@ contract MockFunctionsRouter {
         bytes32 donId
     );
 
-    mapping(bytes32 => address) requesters;
+    mapping(bytes32 => address) public requesters;
 
     function sendRequest(
         uint64 subscriptionId,

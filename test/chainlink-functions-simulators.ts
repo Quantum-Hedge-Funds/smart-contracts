@@ -1,5 +1,5 @@
 import { viem } from "hardhat";
-import { hexToBytes, encodePacked } from "viem";
+import { hexToBytes, encodePacked, encodeAbiParameters } from "viem";
 import cbor from "cbor";
 import { PublicClient, keccak256, stringToBytes } from "viem";
 
@@ -44,7 +44,14 @@ export async function startSimulator({
         const code = `
         class Functions {
           static encodeString(s) {
-            return [["string"], [s]]
+            const strBuffer = Buffer.from(s);
+            const len = (parseInt(strBuffer.length / 32) + Number(strBuffer.length % 32 > 0)) * 64;
+            const buf = Buffer.from(strBuffer.toString("hex").padEnd(len, "0"), "hex");
+            return Buffer.concat([Functions.encodeUint256(32), Functions.encodeUint256(strBuffer.length), buf]);
+          }
+
+          static encodeUint256(i) {
+            return Buffer.from(i.toString(16).padStart(64, "0"), "hex")
           }
           
           static async makeHttpRequest({url, method, data, headers}) {
@@ -78,16 +85,26 @@ export async function startSimulator({
         `;
 
         try {
-          const [types, values] = await eval(code);
+          const result = await eval(code);
 
-          console.log(values);
+          // const result = encodeAbiParameters([{ type: "string" }], values);
+          // console.log(encodeAbiParameters([{ type: "uint256" }], [10n]));
+          // console.log("result = ", result);
+          // console.log("buffer = ", Buffer.from(values[0]).toString("hex"));
+          console.log(result.toString("hex"));
 
-          const result = encodePacked(types, values);
-          await functionsRouter.write.fulfill([
+          // console.log(result);
+          const hash = await functionsRouter.write.fulfill([
             requestId || "0x",
-            result,
+            `0x${result.toString("hex")}`,
             "0x",
           ]);
+
+          await waitForRequestHandling(
+            await viem.getPublicClient(),
+            await functionsRouter.read.requesters([requestId || "0x"]),
+            hash
+          );
         } catch (e) {
           console.log(e);
         }
@@ -105,11 +122,18 @@ export async function waitForRequestHandling(
   contractAddress: `0x${string}`,
   hash: `0x${string}`
 ) {
+  console.log(contractAddress);
+  console.log("A = ", hash);
   const receipt = await client.getTransactionReceipt({ hash });
   const topicId = keccak256(stringToBytes("RequestSent(bytes32)"));
+  console.log("check = ", topicId);
+  console.log("B = ", receipt.logs);
   const logs = receipt.logs.filter(
-    (log) => log.address === contractAddress && log.topics[0] === topicId
+    (log) =>
+      log.address.toLowerCase() === contractAddress.toLowerCase() &&
+      log.topics[0]?.toLowerCase() === topicId.toLowerCase()
   );
+  console.log("C = ", logs);
 
   for (const log of logs) {
     if (!log) throw "functions request not sent";
