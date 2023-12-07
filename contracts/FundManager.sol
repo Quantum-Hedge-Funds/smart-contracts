@@ -79,6 +79,16 @@ contract FundManager is Ownable, FunctionsClient {
         public scheduleOptimizationRequestIdsToRefreshRequestIds;
     mapping(bytes32 => uint256) public resultFetchRequestIdsToRefreshRequestIds;
 
+    // define weights
+    struct Weight {
+        uint256 id;
+        uint256 tokenId;
+        uint256 weight;
+    }
+    mapping(uint256 => Weight) public weights;
+    uint256 totalWeights;
+    uint256 lastUpdated;
+
     event ChainlinkResponse(bytes32 requestId, bytes response, bytes err);
 
     error TokenAlreadyAdded();
@@ -356,6 +366,42 @@ contract FundManager is Ownable, FunctionsClient {
         resultFetchRequestIdsToRefreshRequestIds[requestId] = refreshRequest.id;
     }
 
+    function decodeResult(
+        bytes memory data
+    )
+        public
+        pure
+        returns (
+            uint256 totalTokensInResult,
+            uint256[] memory ids,
+            uint256[] memory tokenWeights
+        )
+    {
+        assembly {
+            totalTokensInResult := mload(add(data, 32))
+        }
+
+        ids = new uint256[](totalTokensInResult);
+        tokenWeights = new uint256[](totalTokensInResult);
+        uint256 totalWeight = 0;
+
+        for (uint256 i = 0; i < totalTokensInResult; i++) {
+            uint256 id;
+            uint256 weight;
+            assembly {
+                id := mload(add(data, add(64, mul(i, 64))))
+                weight := mload(add(data, add(96, mul(i, 64))))
+            }
+            ids[i] = id;
+            tokenWeights[i] = weight;
+            totalWeight += weight;
+        }
+
+        if (totalWeight != 10000) revert("invalid data");
+
+        return (totalTokensInResult, ids, tokenWeights);
+    }
+
     function fulfillRequest(
         bytes32 requestId,
         bytes memory response,
@@ -366,7 +412,7 @@ contract FundManager is Ownable, FunctionsClient {
         }
 
         if (requestTypes[requestId] == RequestType.PRICE_FETCH) {
-            string memory dataCID = abi.decode(response, (string));
+            string memory dataCID = string(response);
             RequestStatus storage refreshRequestStatus = requestStatuses[
                 requestId
             ];
@@ -390,7 +436,7 @@ contract FundManager is Ownable, FunctionsClient {
         }
 
         if (requestTypes[requestId] == RequestType.SCHEDULE_OPTIMIZATION) {
-            string memory jobId = abi.decode(response, (string));
+            string memory jobId = string(response);
             RefreshRequest storage refreshRequest = refreshRequests[
                 scheduleOptimizationRequestIdsToRefreshRequestIds[requestId]
             ];
@@ -404,8 +450,22 @@ contract FundManager is Ownable, FunctionsClient {
                 resultFetchRequestIdsToRefreshRequestIds[requestId]
             ];
             refreshRequest.completed = true;
-            // string memory result = abi.decode(response, (string));
-            // result = result;
+
+            (
+                uint256 totalTokensInResult,
+                uint256[] memory ids,
+                uint256[] memory tokenWeights
+            ) = decodeResult(response);
+
+            for (uint256 i = 0; i < totalTokensInResult; i++) {
+                uint256 tokenId = ids[i];
+                uint256 weight = tokenWeights[i];
+                weights[i] = Weight({id: i, tokenId: tokenId, weight: weight});
+            }
+
+            totalWeights = totalTokensInResult;
+            lastUpdated = block.timestamp;
+
             return;
         }
 

@@ -45,9 +45,10 @@ export async function startSimulator({
         class Functions {
           static encodeString(s) {
             const strBuffer = Buffer.from(s);
-            const len = (parseInt(strBuffer.length / 32) + Number(strBuffer.length % 32 > 0)) * 64;
-            const buf = Buffer.from(strBuffer.toString("hex").padEnd(len, "0"), "hex");
-            return Buffer.concat([Functions.encodeUint256(32), Functions.encodeUint256(strBuffer.length), buf]);
+            return strBuffer;
+            // const len = (parseInt(strBuffer.length / 32) + Number(strBuffer.length % 32 > 0)) * 64;
+            // const buf = Buffer.from(strBuffer.toString("hex").padEnd(len, "0"), "hex");
+            // return Buffer.concat([Functions.encodeUint256(32), Functions.encodeUint256(strBuffer.length), buf]);
           }
 
           static encodeUint256(i) {
