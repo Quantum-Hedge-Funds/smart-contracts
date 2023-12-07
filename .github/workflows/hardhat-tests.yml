@@ -12,6 +12,7 @@ jobs:
       PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
       PINATA_API_KEY: ${{ secrets.PINATA_API_KEY }}
       POLYGON_MUMBAI_RPC: ${{ secrets.POLYGON_MUMBAI_RPC  }}
+      POLYGON_MAINNET_RPC: ${{ secrets.POLYGON_MUMBAI_RPC  }}
 
     steps:
       - uses: actions/checkout@v2
