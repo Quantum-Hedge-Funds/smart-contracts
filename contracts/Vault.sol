@@ -16,6 +16,9 @@ contract Vault {
     IUniswapV2Router02 public uniswapRouter;
 
     address[] public supportedTokens;
+    mapping(address => bool) public isTokenSupported;
+
+    uint256 public lastUpdated;
 
     event Deposit(address indexed from, uint256 amount);
     event Withdraw(address indexed to, uint256 amount);
@@ -37,12 +40,16 @@ contract Vault {
     }
 
     function addSupportedToken(address _token) public {
+        if (isTokenSupported[_token]) revert("Token already supported");
         supportedTokens.push(_token);
+        isTokenSupported[_token] = true;
 
         emit AddSupportedToken(_token);
     }
 
     function removeSupportedToken(address _token) public {
+        if (!isTokenSupported[_token]) revert("Token not supported");
+        isTokenSupported[_token] = false;
         uint256 totalSupportedTokens = supportedTokens.length;
         for (uint256 i = 0; i < totalSupportedTokens; i++) {
             if (supportedTokens[i] == _token) {
@@ -52,8 +59,6 @@ contract Vault {
                 return;
             }
         }
-
-        revert("Token not found");
     }
 
     function deposit(uint256 amount) public {
@@ -149,7 +154,28 @@ contract Vault {
             _swapTokens(tokenAddress, address(stableToken), tokenBalance);
         }
 
-        // TODO: buy the tokens in the propostion given by the fund manager contract
+        uint256 totalUSDCBalance = stableToken.balanceOf(address(this));
+
+        // buy the tokens in the propostion given by the fund manager contract
+        uint256 totalWeights = fundManager.totalWeights();
+        uint256 fundManagerLastUpdate = fundManager.lastUpdated();
+
+        if (lastUpdated == fundManagerLastUpdate) return;
+
+        for (uint256 i = 0; i < totalWeights; i++) {
+            (, uint256 tokenId, uint256 weight) = fundManager.weights(i);
+            (, , address tokenContractAddress, , ) = fundManager.tokens(
+                tokenId
+            );
+
+            //   supportedTokens[]
+            if (!isTokenSupported[tokenContractAddress]) {
+                addSupportedToken(tokenContractAddress);
+            }
+
+            uint256 share = (totalUSDCBalance * weight) / 10000;
+            _swapTokens(address(stableToken), tokenContractAddress, share);
+        }
     }
 
     function _swapTokens(

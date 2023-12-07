@@ -86,8 +86,8 @@ contract FundManager is Ownable, FunctionsClient {
         uint256 weight;
     }
     mapping(uint256 => Weight) public weights;
-    uint256 totalWeights;
-    uint256 lastUpdated;
+    uint256 public totalWeights;
+    uint256 public lastUpdated;
 
     event ChainlinkResponse(bytes32 requestId, bytes response, bytes err);
 
@@ -405,7 +405,7 @@ contract FundManager is Ownable, FunctionsClient {
     function fulfillRequest(
         bytes32 requestId,
         bytes memory response,
-        bytes memory err
+        bytes memory /* err */
     ) internal override {
         if (requestTypes[requestId] == RequestType.NON_EXISTENT) {
             revert InvalidRequestId();
@@ -468,33 +468,5 @@ contract FundManager is Ownable, FunctionsClient {
 
             return;
         }
-
-        // if (requestTypes[requestId] == RequestType.FETCH_RESULT) {
-        //     string memory result = abi.decode(response, (string));
-        //     result = result;
-        //     return;
-        // }
-
-        // if (requestTypes[requestId] == RequestType.RESULT_FETCH) {
-        //     string memory result = abi.decode(response, (string));
-        //     result = result;
-        //     return;
-        // }
-
-        // bytes32 circuitHash = requestIdToCircuitID[requestId];
-
-        // // TODO: handle error
-
-        // if (requestTypes[requestId] == RequestType.CREATE_CIRCUIT) {
-        //     string memory jobId = abi.decode(response, (string));
-        //     updateJobId(circuitHash, jobId);
-        // } else if (requestTypes[requestId] == RequestType.FETCH_RESULT) {
-        //     string memory result = abi.decode(response, (string));
-        //     updateResult(circuitHash, result);
-        // }
-
-        result = response;
-
-        emit ChainlinkResponse(requestId, response, err);
     }
 }

@@ -264,5 +264,7 @@ describe("Fund Manager", function () {
     const request = await fundManager.read.refreshRequests([1n]);
 
     expect(request[7]).to.be.eq(true);
+
+    console.log(await fundManager.read.totalWeights());
   });
 });
