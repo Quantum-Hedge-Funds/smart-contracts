@@ -265,6 +265,12 @@ describe("Fund Manager", function () {
 
     expect(request[7]).to.be.eq(true);
 
-    console.log(await fundManager.read.totalWeights());
+    const totalWeights = await fundManager.read.totalWeights();
+    const expectedIds = [9n, 4n, 5n, 6n, 10n];
+
+    for (let i = 0; i < Number(totalWeights); i++) {
+      const weight = await fundManager.read.weights([BigInt(i)]);
+      expect(weight[1]).to.be.eq(expectedIds[i]);
+    }
   });
 });
