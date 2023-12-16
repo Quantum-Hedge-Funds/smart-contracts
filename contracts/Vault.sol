@@ -98,8 +98,14 @@ contract Vault {
     ) public view returns (uint256 share) {
         uint256 totalValue = calculateTotalValue();
         uint256 currentTotalSupply = shareToken.totalSupply();
-        if (totalValue == 0 || currentTotalSupply == 0) share = amount;
-        else share = (currentTotalSupply * amount) / totalValue;
+
+        if (totalValue == 0 || currentTotalSupply == 0) {
+            uint256 stableTokenUnit = 10 ** stableToken.decimals();
+            uint256 shareTokenUnit = 10 ** shareToken.decimals();
+            share = (amount * shareTokenUnit) / stableTokenUnit;
+        } else {
+            share = (currentTotalSupply * amount) / totalValue;
+        }
     }
 
     function calculateTotalValue() public view returns (uint256 total) {
