@@ -8,7 +8,7 @@ const oracleAPIKey = secrets["oracleAPIKey"];
 
 async function scheduleOptimization() {
   const apiResponse = await Functions.makeHttpRequest({
-    url: `http://localhost:8080/diversify`,
+    url: `https://api-production-5752.up.railway.app/diversify`,
     method: "POST",
     headers: {
       accept: "application/json",
@@ -19,6 +19,7 @@ async function scheduleOptimization() {
       hashes: tokenBatches,
     },
   });
+  console.log(JSON.stringify(apiResponse));
   if (apiResponse.error) {
     throw "api request failed";
   }

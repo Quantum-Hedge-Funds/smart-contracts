@@ -1,6 +1,8 @@
 const tokens = JSON.parse(args[0]).tokens;
 const pinataAPIKey = secrets["pinataAPIKey"];
 
+console.log(tokens);
+
 async function getTokenPrices() {
   const prices = [];
 

@@ -4,7 +4,7 @@ const oracleAPIKey = secrets["oracleAPIKey"];
 
 async function fetchResult() {
   const apiResponse = await Functions.makeHttpRequest({
-    url: `http://localhost:8080/get-diversification-result`,
+    url: `https://api-production-5752.up.railway.app/get-diversification-result`,
     method: "POST",
     headers: {
       accept: "application/json",
@@ -13,6 +13,7 @@ async function fetchResult() {
     },
     data: jobId,
   });
+  console.log(JSON.stringify(apiResponse));
   if (apiResponse.error) {
     throw "api request failed";
   }
