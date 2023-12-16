@@ -1,4 +1,4 @@
-import { viem } from "hardhat";
+import { run, viem } from "hardhat";
 
 const chainlinkFunctionsRouter = "0xdc2AAF042Aeff2E68B3e8E33F19e4B9fA7C73F10";
 const uniswapV2RouterAddress = "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff";
@@ -14,6 +14,11 @@ async function main() {
     chainlinkFunctionsRouter,
   ]);
 
+  await run("verify:verify", {
+    address: fundManager.address,
+    constructorArguments: [chainlinkFunctionsRouter],
+  });
+
   console.log(`Fund Manager is deployed to ${fundManager.address}`);
 
   const vault = await viem.deployContract("Vault", [
@@ -22,7 +27,20 @@ async function main() {
     uniswapV2RouterAddress,
   ]);
 
+  await run("verify:verify", {
+    address: vault.address,
+    constructorArguments: [
+      stableTokenAddress,
+      fundManager.address,
+      uniswapV2RouterAddress,
+    ],
+  });
+
   console.log(`Vault Contract is deployed to ${vault.address}`);
+
+  console.log(
+    `Vault Share token contract is deployed to ${await vault.read.shareToken()}`
+  );
 
   await fundManager.write.setDONConfig([
     donHostedSecretsSlotID,

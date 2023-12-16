@@ -16,6 +16,13 @@ const config: HardhatUserConfig = {
       accounts: [process.env.PRIVATE_KEY || ""],
     },
   },
+  etherscan: {
+    // Your API key for Etherscan
+    // Obtain one at https://etherscan.io/
+    apiKey: {
+      polygon: process.env.POLYGONSCAN_API_KEY || "",
+    },
+  },
 };
 
 export default config;
