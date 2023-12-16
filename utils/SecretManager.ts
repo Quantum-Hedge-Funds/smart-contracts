@@ -23,6 +23,7 @@ import {
   stringToBytes,
   bytesToHex,
   isHex,
+  hexToBytes,
 } from "viem";
 import { IFunctionsRouter$Type } from "../artifacts/@chainlink/contracts/src/v0.8/functions/dev/v1_0_0/interfaces/IFunctionsRouter.sol/IFunctionsRouter";
 import { IFunctionsCoordinator$Type } from "../artifacts/@chainlink/contracts/src/v0.8/functions/dev/v1_0_0/interfaces/IFunctionsCoordinator.sol/IFunctionsCoordinator";
@@ -67,7 +68,9 @@ export class SecretsManager {
   }
 
   public async initialize(): Promise<void> {
-    const donIdBytes32 = stringToBytes(this.donId!, { size: 32 });
+    const donIdBytes32 = isHex(this.donId)
+      ? hexToBytes(this.donId)
+      : stringToBytes(this.donId!, { size: 32 });
 
     let functionsCoordinatorAddress: `0x${string}`;
     try {
