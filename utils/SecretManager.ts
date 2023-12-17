@@ -24,6 +24,7 @@ import {
   bytesToHex,
   isHex,
   hexToBytes,
+  stringToHex,
 } from "viem";
 import { IFunctionsRouter$Type } from "../artifacts/@chainlink/contracts/src/v0.8/functions/dev/v1_0_0/interfaces/IFunctionsRouter.sol/IFunctionsRouter";
 import { IFunctionsCoordinator$Type } from "../artifacts/@chainlink/contracts/src/v0.8/functions/dev/v1_0_0/interfaces/IFunctionsCoordinator.sol/IFunctionsCoordinator";
@@ -69,15 +70,13 @@ export class SecretsManager {
 
   public async initialize(): Promise<void> {
     const donIdBytes32 = isHex(this.donId)
-      ? hexToBytes(this.donId)
-      : stringToBytes(this.donId!, { size: 32 });
+      ? this.donId
+      : stringToHex(this.donId!, { size: 32 });
 
     let functionsCoordinatorAddress: `0x${string}`;
     try {
       functionsCoordinatorAddress =
-        await this.functionsRouter.read.getContractById([
-          bytesToHex(donIdBytes32),
-        ]);
+        await this.functionsRouter.read.getContractById([donIdBytes32]);
     } catch (error) {
       throw Error(
         `${error}\n\nError encountered when attempting to fetch the FunctionsCoordinator address.\nEnsure the FunctionsRouter address and donId are correct and that that the provider is able to connect to the blockchain.`
@@ -217,6 +216,8 @@ export class SecretsManager {
       message,
       signature,
     });
+
+    console.log(signedSecrets);
 
     const encryptedSignedSecrets = EthCrypto.cipher.stringify(
       await EthCrypto.encryptWithPublicKey(donPublicKey, signedSecrets)

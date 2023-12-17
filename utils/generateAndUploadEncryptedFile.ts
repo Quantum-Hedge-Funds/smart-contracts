@@ -12,7 +12,7 @@ export async function generateAndUploadEncryptedFile({
   secrets: Record<string, string>;
   routerAddress: `0x${string}`;
   donId: string;
-}): Promise<string> {
+}): Promise<`0x${string}`> {
   const secretsManager = new SecretsManager({
     walletClient,
     functionsRouterAddress: routerAddress,
@@ -47,6 +47,10 @@ export async function generateAndUploadEncryptedFile({
     };
   };
   const fileHash = data.IpfsHash;
+
+  const secreturl = `https://gateway.pinata.cloud/ipfs/${fileHash}`;
+
+  console.log(await secretsManager.verifyOffchainSecrets([secreturl]));
 
   const encryptedSecretsUrls = await secretsManager.encryptSecretsUrls([
     `https://gateway.pinata.cloud/ipfs/${fileHash}`,
