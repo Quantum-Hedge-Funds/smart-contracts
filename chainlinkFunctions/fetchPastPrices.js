@@ -8,16 +8,13 @@ async function getTokenPrices() {
 
   for (let token of tokens) {
     const apiResponse = await Functions.makeHttpRequest({
-      url: `https://api.coingecko.com/api/v3/coins/${token.symbol}/market_chart?vs_currency=usd&days=60&interval=daily`,
+      url: `https://api.coingecko.com/api/v3/coins/${token.symbol}/market_chart?vs_currency=usd&days=15&interval=daily`,
     });
     if (apiResponse.error) {
       continue;
     }
     const { data } = apiResponse;
-    const priceData = data.prices.map((price) => ({
-      date: new Date(price[0]),
-      value: price[1],
-    }));
+    const priceData = data.prices.map((price) => price[1]);
     prices.push({ ...token, prices: priceData });
   }
 
