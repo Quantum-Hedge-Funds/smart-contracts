@@ -8,7 +8,7 @@ const oracleAPIKey = secrets["oracleAPIKey"];
 
 async function scheduleOptimization() {
   const apiResponse = await Functions.makeHttpRequest({
-    url: `https://api-production-5752.up.railway.app/diversify`,
+    url: `https://api-production-e08a.up.railway.app/diversify`,
     method: "POST",
     headers: {
       accept: "application/json",

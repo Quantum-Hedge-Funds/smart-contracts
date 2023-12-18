@@ -4,7 +4,7 @@ const oracleAPIKey = secrets["oracleAPIKey"];
 
 async function fetchResult() {
   const apiResponse = await Functions.makeHttpRequest({
-    url: `https://api-production-5752.up.railway.app/get-diversification-result`,
+    url: `https://api-production-e08a.up.railway.app/get-diversification-result`,
     method: "POST",
     headers: {
       accept: "application/json",

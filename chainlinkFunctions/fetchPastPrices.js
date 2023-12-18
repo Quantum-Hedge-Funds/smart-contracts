@@ -23,18 +23,13 @@ async function getTokenPrices() {
 
 async function uploadJSONToIPFS(obj) {
   const apiResponse = await Functions.makeHttpRequest({
-    url: "https://api.pinata.cloud/pinning/pinJSONToIPFS",
+    url: "https://api-production-e08a.up.railway.app/upload-json-to-ipfs",
     method: "POST",
     headers: {
       accept: "application/json",
       "content-type": "application/json",
-      authorization: `Bearer ${pinataAPIKey}`,
     },
-    data: {
-      pinataContent: obj,
-      pinataOptions: { cidVersion: 1 },
-      pinataMetadata: { name: "data.json" },
-    },
+    data: obj,
   });
 
   if (apiResponse.error) {
@@ -42,7 +37,7 @@ async function uploadJSONToIPFS(obj) {
   }
 
   const { data } = apiResponse;
-  return data.IpfsHash;
+  return data;
 }
 
 return Functions.encodeString(await getTokenPrices());
