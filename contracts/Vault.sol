@@ -3,12 +3,13 @@ pragma solidity ^0.8.20;
 
 import "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import "@uniswap/v2-periphery/contracts/interfaces/IUniswapV2Router02.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 import "./VaultShareToken.sol";
 import "./FundManager.sol";
 import "./interfaces/ExtendedIERC20.sol";
 
-contract Vault {
+contract Vault is Ownable {
     VaultShareToken public shareToken;
     ExtendedIERC20 public stableToken;
     FundManager public fundManager;
@@ -28,7 +29,7 @@ contract Vault {
         ExtendedIERC20 _stableToken,
         FundManager _fundManager,
         address _uniswapRouter
-    ) {
+    ) Ownable(msg.sender) {
         fundManager = _fundManager;
         stableToken = _stableToken;
         shareToken = new VaultShareToken();
@@ -36,6 +37,10 @@ contract Vault {
         uniswapRouter = IUniswapV2Router02(_uniswapRouter);
 
         emit AddSupportedToken(address(stableToken));
+    }
+
+    function updateFundManager(FundManager _fundManager) public onlyOwner {
+        fundManager = _fundManager;
     }
 
     function addSupportedToken(address _token) public {
