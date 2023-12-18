@@ -61,6 +61,7 @@ contract FundManager is Ownable, FunctionsClient {
         uint256 totalBatchesFulfilled;
         bool fulfilled;
         bytes32 scheduleOptimizationRequestId;
+        bool scheduleInitiated;
         bool scheduled;
         string jobId;
         bool completed;
@@ -213,6 +214,7 @@ contract FundManager is Ownable, FunctionsClient {
             totalBatchesFulfilled: 0,
             fulfilled: false,
             scheduleOptimizationRequestId: bytes32(""),
+            scheduleInitiated: false,
             scheduled: false,
             jobId: "",
             completed: false
@@ -313,10 +315,13 @@ contract FundManager is Ownable, FunctionsClient {
         );
     }
 
-    function _scheduleOptimization(uint256 refreshRequestId) internal {
+    function scheduleOptimization(uint256 refreshRequestId) public {
         RefreshRequest storage refreshRequest = refreshRequests[
             refreshRequestId
         ];
+        if (!refreshRequest.fulfilled) revert("Not fulfilled");
+        if (refreshRequest.scheduleInitiated) revert("Already initiated");
+        refreshRequest.scheduleInitiated = true;
         uint256 totalBatches = refreshRequest.totalBatches;
         string[] memory args = new string[](totalBatches + 1);
         args[0] = Strings.toString(totalBatches);
@@ -428,10 +433,7 @@ contract FundManager is Ownable, FunctionsClient {
                 refreshRequest.totalBatches
             ) {
                 refreshRequest.fulfilled = true;
-                // initiate schedule optimization
-                _scheduleOptimization(refreshRequest.id);
             }
-
             return;
         }
 
