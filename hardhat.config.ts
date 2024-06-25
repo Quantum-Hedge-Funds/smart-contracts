@@ -7,8 +7,8 @@ dotenv.config();
 const config: HardhatUserConfig = {
   solidity: "0.8.20",
   networks: {
-    polygonMumbai: {
-      url: process.env.POLYGON_MUMBAI_RPC,
+    polygonAmoy: {
+      url: process.env.POLYGON_AMOY_RPC,
       accounts: [process.env.PRIVATE_KEY || ""],
     },
     polygonMainnet: {
